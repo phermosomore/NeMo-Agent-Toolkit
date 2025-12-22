@@ -33,39 +33,12 @@ retrievers:
     embedding_model: milvus_embedder
     top_k: 20
 
-# LLMs for NIM:
-# meta/llama-3.3-70b-instruct WORKS
-# openai/gpt-oss-120b (Incomplete outputs)
-    # min_p: 0.1
-    # top_k: 100
-    # reasoning_effort: low
-    # max_output_tokens: 120000
-# nvidia/llama-3.3-nemotron-super-49b-v1 (fails with tool calling)
-# nvidia/llama-3.3-nemotron-super-49b-v1.5
-  # thinking: true
-  # temperature: 0.6
-  # top_p: 0.95
-# meta/llama-4-scout-17b-16e-instruct (bah, not great)
-# nvidia/nemotron-3-nano-30b-a3b
-# qwen/qwen3-next-80b-a3b-instruct (does not work)
-# nvidia/llama-3.3-nemotron-super-49b-v1.5 (works with and without thinking on). With thinking on, it is much slower.
-# "model": "meta/llama-4-maverick-17b-128e-instruct", (Not tested yet) 
-#   "messages": [{"role":"user","content":""}],
-#   "max_tokens": 512,
-#   "temperature": 1.00,
-#   "top_p": 1.00,
-# meta/llama-3.1-405b-instruct (NAH) 
-# Also need to test other embedders like the llama 3.2 embedder
-# nvidia/llama-3_1-nemotron-ultra-253b-v1 (also so be tested)
-# mistralai/mistral-large-3-675b-instruct-2512 (temp @ 0.1)
-# deepseek-ai/deepseek-v3.2
-
-# BEST LLMS so Far:
-# 1) meta/llama-4-maverick-17b-128e-instruct (need to adjust so as to show agent thoughts!) BASELINE. 0.6 / 0.95
-# 2) nvidia/llama-3.3-nemotron-super-49b-v1.5 (0.6 / 0.95)
-# 3) mistralai/mistral-large-3-675b-instruct-2512 (temp @ 0.1 / 0.95)
-# 4) meta/llama-3.3-70b-instruct (0.6 / 0.95)
-# 5) deepseek-ai/deepseek-v3.2 (1.0 / 0.95)
+# BEST LLMS so Far: (need to adjust so as to show agent thoughts!)
+# 1) deepseek-ai/deepseek-v3.2 (1.0 / 0.95) - Baseline.
+# 2) meta/llama-4-maverick-17b-128e-instruct - Close to Baseline. 0.6 / 0.95
+# 3) nvidia/llama-3.3-nemotron-super-49b-v1.5 (0.6 / 0.95) - Can support thinking.
+# 4) mistralai/mistral-large-3-675b-instruct-2512 (temp @ 0.1 / 0.95)
+# 5) meta/llama-3.3-70b-instruct (0.6 / 0.95)
 
 # BEST EMBEDDER so Far:
 # nvidia/llama-3_2-nemoretriever-300m-embed-v2
@@ -73,11 +46,10 @@ retrievers:
 llms:
   nim_llm:
     _type: nim
-    model_name: meta/llama-4-maverick-17b-128e-instruct
-    temperature: 0.6
+    model_name: deepseek-ai/deepseek-v3.2
+    temperature: 1.0
     top_p: 0.95
     max_tokens: 16384
-    # thinking: false
   nemotron_model:
     _type: nim
     model_name: nvidia/llama-3.3-nemotron-super-49b-v1.5
