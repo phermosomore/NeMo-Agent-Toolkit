@@ -11,7 +11,6 @@ docker compose -f examples/deploy/docker-compose.milvus.yml logs --follow
 # Run Ingestion:
 cd examples/pynemo_dataprep/scripts
 bash bootstrap_milvus.sh
-./bootstrap_milvus.sh ../../pynemo_dataprep
 
 # Set up code exector:
 ./src/nat/tool/code_execution/local_sandbox/start_local_sandbox.sh local-sandbox examples/pynemo_dataprep
@@ -55,16 +54,26 @@ nat run --config_file=examples/pynemo_dataprep/configs/config.yaml --input "Writ
 An automated evaluation system is available in the `evals/` directory:
 
 ```bash
-# Run all evaluation questions
+# Run all evaluation questions with custom run name
+./examples/pynemo_dataprep/evals/run_eval.sh baseline
+
+# Or with auto-generated timestamp
 ./examples/pynemo_dataprep/evals/run_eval.sh
 
 # View summary of results
-./examples/pynemo_dataprep/evals/summarize_results.sh
+./examples/pynemo_dataprep/evals/summarize_results.sh baseline
+
+# Compare two runs
+./examples/pynemo_dataprep/evals/compare_runs.sh baseline experiment_v2
 
 # Check individual results
-cat evals/results/question_1.txt
+cat evals/results/baseline/question_1.txt
 ```
 
 See `evals/README.md` for full documentation of the evaluation system.
 
 Questions for evaluation are stored in `evals/questions.txt`.
+
+Each evaluation run is saved in a separate directory under `evals/results/` allowing
+you to track and compare multiple evaluation runs (e.g., different configurations,
+model versions, or parameters).
