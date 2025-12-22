@@ -18,20 +18,34 @@ ARG UWSGI_CHEAPER=5
 ARG UWSGI_PROCESSES=10
 
 # Use the base image with Python 3.13
-FROM python:3.13-slim-bookworm
+# FROM python:3.13-slim-bookworm
+FROM nvcr.io/nvidia/physicsnemo/physicsnemo:25.08
 
+# Install git
+RUN apt-get update && apt-get install -y git
 
-RUN apt update && \
-    apt upgrade && \
-    apt install -y --no-install-recommends libexpat1 && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/*
+# Install from source
+RUN git clone https://github.com/NVIDIA/physicsnemo-curator.git /workspace/curator
+WORKDIR /workspace/curator
+
+RUN pip install --upgrade pip
+RUN pip install -e ".[dev]"
+
+# Install pre-commit hooks
+RUN pre-commit install
+WORKDIR /workspace
+
+# RUN apt update && \
+#     apt upgrade && \
+#     apt install -y --no-install-recommends libexpat1 && \
+#     apt clean && \
+#     rm -rf /var/lib/apt/lists/*
 
 # Set up application code and install Python dependencies
 COPY sandbox.requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY local_sandbox_server.py /app/main.py
-RUN mkdir /workspace
+# RUN mkdir /workspace
 
 # Set Flask app environment variables and ports
 ARG UWSGI_CHEAPER

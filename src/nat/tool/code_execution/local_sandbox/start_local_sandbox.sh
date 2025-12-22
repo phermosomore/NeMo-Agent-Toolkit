@@ -29,6 +29,12 @@ UWSGI_PROCESSES=${UWSGI_PROCESSES:-10}
 # Priority: command line argument > environment variable > default path (current directory)
 OUTPUT_DATA_PATH=${2:-${OUTPUT_DATA_PATH:-$(pwd)}}
 
+# Convert relative path to absolute path
+# This is required by Docker for volume mounts
+if [[ ! "${OUTPUT_DATA_PATH}" = /* ]]; then
+    OUTPUT_DATA_PATH="$(cd "${OUTPUT_DATA_PATH}" 2>/dev/null && pwd)" || OUTPUT_DATA_PATH="$(pwd)/${OUTPUT_DATA_PATH}"
+fi
+
 echo "Starting sandbox with container name: ${SANDBOX_NAME}"
 echo "Mounting output_data directory: ${OUTPUT_DATA_PATH}"
 
@@ -51,6 +57,6 @@ fi
 
 # Mount the output_data directory directly so files created in container appear in the local directory
 ${DOCKER_COMMAND} run --rm -ti --name=local-sandbox \
-  --network=host \
+  -p 6000:6000 \
   -v "${OUTPUT_DATA_PATH}:/workspace" \
   ${SANDBOX_NAME}

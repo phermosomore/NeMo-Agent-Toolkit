@@ -1,0 +1,6 @@
+# Ignore evaluation result files
+results/*.txt
+
+# Keep the directory structure
+!results/.gitkeep
+

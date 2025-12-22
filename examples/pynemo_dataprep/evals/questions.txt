@@ -1,0 +1,18 @@
+What model architectures for External Aerodynamics CFD Surrogates are supported in PhysicsNemo
+
+Can you explain the model XAeroNet: Scalable Neural Models for External Aerodynamics presented in the PhysicsNemo
+
+What is the exact code behind the DoMINO model in PhysicsNemo Repository
+
+Look at the Transolver for External Aerodynamics on Irregular Meshes example in PhysicsNemo and explain how to prepare the data for onboarding my use case.
+
+Write and present to me a function to create a DGL Graph with a random number of nodes and count the number of nodes. Test it on a dummy graph you create.
+
+Can you run this Hello World Example from PhysicsNemo and print the code and the result. Here is the code: >>> import torch
+>>> from physicsnemo.models.mlp.fully_connected import FullyConnected
+>>> model = FullyConnected(in_features=32, out_features=64)
+>>> input = torch.randn(128, 32)
+>>> output = model(input)
+>>> output.shape
+
+I have Crash Simulation data from LS-DYNA and want to build an FEA Surrogate using PhysicsNemo. But first I need to use the PhysicsNemo Curator for the ETL and Data Processing. Explain how to do the first bit of organising the run data and do the data processing and give me relevant code and places in the codebase to look up if you have examples.

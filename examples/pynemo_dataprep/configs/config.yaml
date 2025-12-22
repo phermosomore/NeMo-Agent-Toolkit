@@ -1,0 +1,239 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+retrievers:
+  physicsnemo_docs_retriever:
+    _type: milvus_retriever
+    uri: http://localhost:19530
+    collection_name: "physicsnemo_docs"
+    embedding_model: milvus_embedder
+    top_k: 10
+  physicsnemo_code_retriever:
+    _type: milvus_retriever
+    uri: http://localhost:19530
+    collection_name: "physicsnemo_code"
+    embedding_model: milvus_embedder
+    top_k: 10
+  physicsnemo_curator_code_retriever:
+    _type: milvus_retriever
+    uri: http://localhost:19530
+    collection_name: "physicsnemo_curator_code"
+    embedding_model: milvus_embedder
+    top_k: 10
+
+# LLMs for NIM:
+# meta/llama-3.3-70b-instruct WORKS
+# openai/gpt-oss-120b (Incomplete outputs)
+    # min_p: 0.1
+    # top_k: 100
+    # reasoning_effort: low
+    # max_output_tokens: 120000
+# nvidia/llama-3.3-nemotron-super-49b-v1 (fails with tool calling)
+# meta/llama-4-scout-17b-16e-instruct (bah, not great)
+# nvidia/nemotron-3-nano-30b-a3b
+# qwen/qwen3-next-80b-a3b-instruct (does not work)
+# nvidia/llama-3.3-nemotron-super-49b-v1.5 (works with and without thinking on). With thinking on, it is much slower.
+
+llms:
+  nim_llm:
+    _type: nim
+    model_name: nvidia/llama-3.3-nemotron-super-49b-v1.5
+    thinking: true
+    temperature: 0.6
+    top_p: 0.95
+    max_tokens: 16384
+  nemotron_model:
+    _type: nim
+    model_name: nvidia/llama-3.3-nemotron-super-49b-v1.5
+    thinking: true
+    temperature: 0.6
+    top_p: 0.95
+    max_tokens: 16384
+
+embedders:
+  nv-embedqa-e5-v5:
+    _type: nim
+    model_name: nvidia/nv-embedqa-e5-v5
+  milvus_embedder:
+    _type: nim
+    model_name: nvidia/nv-embedqa-e5-v5
+
+functions:
+  physicsnemo_docs_retriever_tool:
+    _type: nat_retriever
+    retriever: physicsnemo_docs_retriever
+    topic: >
+      Retrieve conceptual guides, API reference documentation, parameter definitions, 
+      and theoretical explanations for PhysicsNemo. 
+      Use this when the user asks "What is...", "How does X work?", or "Explain the parameters of Y".
+
+      CRITICAL CITATION RULES:
+      1. The specific filename is found in the metadata field "source" or "file_name" of the retrieved chunk. 
+      2. YOU MUST USE THIS EXACT METADATA VALUE. 
+      3. DO NOT GUESS filenames based on the class name (e.g., do NOT invent 'class_name.py'). 
+      4. If the metadata source is missing, write "Source: Unknown".
+
+      CRITICAL INSTRUCTIONS:
+      1. CITATION: Always cite the filename. Distinguish between Code (file.py) and Docs (README.md).
+      2. IF CODE: Do not summarize. Return the actual class/function code verbatim.
+      3. IF DOCS: Quote the specific instructions or configuration steps found in the Markdown.
+      4. SYNTHESIS: Use the Markdown files to explain *how* to run the Code files you find.
+
+  physicsnemo_code_retriever_tool:
+    _type: nat_retriever
+    retriever: physicsnemo_code_retriever
+    topic: >
+      Retrieve information from the PhysicsNemo codebase, including Source Code (.py) AND Internal Documentation (.md, READMEs).
+      Use this tool to find:
+      1. Class/Function implementations.
+      2. "How-to" guides and tutorials located inside the repository.
+      3. Configuration examples often found in README files.
+
+      CRITICAL CITATION RULES:
+      1. The specific filename is found in the metadata field "source" or "file_name" of the retrieved chunk. 
+      2. YOU MUST USE THIS EXACT METADATA VALUE. 
+      3. DO NOT GUESS filenames based on the class name (e.g., do NOT invent 'class_name.py'). 
+      4. If the metadata source is missing, write "Source: Unknown".
+      
+      CRITICAL INSTRUCTIONS:
+      1. CITATION: Always cite the filename. Distinguish between Code (file.py) and Docs (README.md).
+      2. IF CODE: Do not summarize. Return the actual class/function code verbatim.
+      3. IF DOCS: Quote the specific instructions or configuration steps found in the Markdown.
+      4. SYNTHESIS: Use the Markdown files to explain *how* to run the Code files you find.
+
+  physicsnemo_curator_code_retriever_tool:
+    _type: nat_retriever
+    retriever: physicsnemo_curator_code_retriever
+    topic: >
+      Retrieve information from the PhysicsNemo Curator codebase, including Source Code (.py) AND Internal Documentation (.md, READMEs).
+      Use this tool to find:
+      1. Class/Function implementations.
+      2. "How-to" guides and tutorials located inside the repository.
+      3. Configuration examples often found in README files.
+
+      CRITICAL CITATION RULES:
+      1. The specific filename is found in the metadata field "source" or "file_name" of the retrieved chunk. 
+      2. YOU MUST USE THIS EXACT METADATA VALUE. 
+      3. DO NOT GUESS filenames based on the class name (e.g., do NOT invent 'class_name.py'). 
+      4. If the metadata source is missing, write "Source: Unknown".
+      
+      CRITICAL INSTRUCTIONS:
+      1. CITATION: Always cite the filename. Distinguish between Code (file.py) and Docs (README.md).
+      2. IF CODE: Do not summarize. Return the actual class/function code verbatim.
+      3. IF DOCS: Quote the specific instructions or configuration steps found in the Markdown.
+      4. SYNTHESIS: Use the Markdown files to explain *how* to run the Code files you find.
+  
+  
+  # physicsnemo_docs_retriever_tool:
+  #   _type: webpage_query
+  #   webpage_url: https://docs.nvidia.com/physicsnemo/latest/index.html
+  #   description: "Search for information about PhysicsNemo. For any questions about PhysicsNemo, you must use this tool!"
+  #   embedder_name: nv-embedqa-e5-v5
+
+  current_datetime:
+    _type: current_datetime
+  code_generation:
+    _type: code_generation
+    programming_language: "Python"
+    description: >
+      Useful to generate Python code.
+      
+      ### 🚨 CRITICAL EXECUTION RULES 🚨
+      1. **NO ENTRY GUARDS**: Strictly **FORBIDDEN** to use `if __name__ == "__main__":`.
+         * **Reason**: The execution sandbox ignores this block, resulting in empty output/silent failure.
+      2. **DIRECT CALL**: You MUST call your `main()` function (or entry point) directly at the global scope at the bottom of the script.
+      3. **Example**:
+         ```python
+         def main():
+             print("Hello")
+         
+         # CORRECT:
+         main()
+         ```
+    llm_name: nim_llm
+    verbose: true
+  code_execution:
+      _type: code_execution
+      timeout: 30
+      max_output_characters: 3000
+      sandbox_uri: http://localhost:6000
+  react_agent:
+    _type: react_agent
+    tool_names: [ physicsnemo_docs_retriever_tool, physicsnemo_code_retriever_tool, physicsnemo_curator_code_retriever_tool, current_datetime, code_generation, code_execution ]
+    llm_name: nim_llm
+    verbose: true
+    parse_agent_response_max_retries: 4
+
+
+# workflow:
+#   _type: tool_calling_agent
+#   tool_names: [physicsnemo_docs_retriever_tool, physicsnemo_code_retriever_tool, wikipedia_search, current_datetime, code_generation]
+#   llm_name: nim_llm
+#   verbose: true
+#   handle_tool_errors: true
+#   parse_agent_response_max_retries: 3
+
+workflow:
+  _type: reasoning_agent
+  llm_name: nemotron_model
+  augmented_fn: react_agent
+  verbose: true
+  additional_instructions: >
+      You are an expert Research Software Engineer specializing in NVIDIA PhysicsNemo.
+
+      ### STRATEGY FOR ANSWERING
+      1. **CONCEPTUAL FIRST**: Unless the user explicitly asks for "Source Code Implementation", ALWAYS check the `physicsnemo_docs_retriever_tool` first to understand the intended usage and theory.
+      2. **CODE SECOND**: Use the code retrievers to verify implementation details or find undocumented features.
+      
+      ### INSTRUCTIONS FOR DOCUMENTATION (Markdown)
+      When you retrieve information from documentation (Markdown files):
+      1. **SYNTHESIZE**: Combine theory from the docs with practical examples from the code.
+      2. **CONTEXT**: If the documentation explains *why* a parameter exists, include that context.
+      
+      ### STRICT INSTRUCTIONS FOR CODE QUESTIONS
+      The user's UI **ONLY displays your 'Final Answer'**. It does **NOT** see your 'Thoughts'.
+      1. **NO SUMMARIZATION IN FINAL ANSWER**: If the user asks for code, do NOT summarize it. You must copy the *entire* code block found in your thoughts and paste it into the Final Answer.
+      2. **CITATION**: Always mention the specific file path and class name (e.g., "Found in `examples/crash/data.py`").
+      3. **EXPLANATION**: Do not just dump code. Explain the "Why" and "How" before showing the "What".
+      4. **VISUALIZATION**: Complex architectures (e.g., DoMINO, AeroGraphNet) are hard to understand from text. Trigger diagrams using the tag `
+        [Image of <query>]` contextually. 
+      ` contextually. 
+         * Example: "The DoMINO model  processes surface and volume data..."
+      5. **COMPLETENESS**: The code you generate must be a complete script (imports, main function, error handling) that the user can copy and run immediately.
+      6. **CODE INCLUSION**: If a tool call results in code being returned, you MUST include that VERBATIM in your response.
+
+      ### GENERAL RULES
+      1. **EXHAUSTIVE ANSWER**: Your FINAL ANSWER must be exhaustive, including all imports and boilerplate code.
+      2. **NO HALLUCINATION**: If the retrieved context does not contain the specific implementation details, state clearly that the information is missing rather than generating hypothetical code.
+
+eval:
+  general:
+    output_dir: .tmp/nat/examples/tool_calling_agent/
+    dataset:
+      _type: json
+      file_path: examples/agents/data/wikipedia.json
+  evaluators:
+    accuracy:
+      _type: ragas
+      metric: AnswerAccuracy
+      llm_name: nim_llm
+    relevance:
+      _type: ragas
+      metric: ContextRelevance
+      llm_name: nim_llm
+    groundedness:
+      _type: ragas
+      metric: ResponseGroundedness
+      llm_name: nim_llm
