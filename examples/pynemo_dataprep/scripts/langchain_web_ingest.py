@@ -71,7 +71,7 @@ def process_notebook(content: str, filename: str, base_metadata: dict, chunk_siz
 
         if cell['cell_type'] == 'markdown':
             # Use existing Markdown logic
-            md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=[("#", "h1"), ("##", "h2"), ("###", "h3")])
+            md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=[("#", "h1"), ("##", "h2")])
             cell_docs = md_splitter.split_text(cell_source)
             
             # Re-split with larger chunks for 8k model
@@ -405,14 +405,29 @@ async def ingest_local_files(*,
                 docs.extend(splitter.create_documents([content], metadatas=[md]))
         
         elif ext in {".md", ".markdown"}:
-            md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=[("#", "h1"), ("##", "h2"), ("###", "h3")])
-            md_docs = md_splitter.split_text(content)
-            # Use increased text_chunk_size
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=text_chunk_size, chunk_overlap=text_chunk_overlap)
-            for d in md_docs:
-                md_meta = {**base_metadata, **d.metadata}
-                md_meta = sanitize_metadata(md_meta)
-                docs.extend(text_splitter.create_documents([d.page_content], metadatas=[md_meta]))
+            # STRATEGY: Whole File vs. Header Splitting
+            # We use code_chunk_size (approx 24k chars) as the safety limit for the 8k token model
+            
+            if len(content) <= code_chunk_size:
+                # OPTION A: Embed the WHOLE file
+                # This preserves global context (Intro + Body + Conclusion)
+                final_meta = sanitize_metadata(base_metadata)
+                docs.append(Document(page_content=content, metadata=final_meta))
+            
+            else:
+                # OPTION B: File is too massive, fall back to semantic splitting
+                logger.info(f"Markdown file {path} is too large ({len(content)} chars). Splitting by headers.")
+                
+                md_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=[("#", "h1"), ("##", "h2")])
+                md_docs = md_splitter.split_text(content)
+                
+                # We use text_chunk_size here for the sub-chunks
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=text_chunk_size, chunk_overlap=text_chunk_overlap)
+                
+                for d in md_docs:
+                    md_meta = {**base_metadata, **d.metadata}
+                    md_meta = sanitize_metadata(md_meta)
+                    docs.extend(text_splitter.create_documents([d.page_content], metadatas=[md_meta]))
         else:
             splitter = RecursiveCharacterTextSplitter(chunk_size=text_chunk_size, chunk_overlap=text_chunk_overlap)
             md = sanitize_metadata(base_metadata)

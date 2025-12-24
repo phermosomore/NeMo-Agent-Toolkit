@@ -19,19 +19,19 @@ retrievers:
     uri: http://localhost:19530
     collection_name: "physicsnemo_docs"
     embedding_model: milvus_embedder
-    top_k: 20
+    top_k: 10
   physicsnemo_code_retriever:
     _type: milvus_retriever
     uri: http://localhost:19530
     collection_name: "physicsnemo_code"
     embedding_model: milvus_embedder
-    top_k: 20
+    top_k: 10
   physicsnemo_curator_code_retriever:
     _type: milvus_retriever
     uri: http://localhost:19530
     collection_name: "physicsnemo_curator_code"
     embedding_model: milvus_embedder
-    top_k: 20
+    top_k: 10
 
 # BEST LLMS so Far: (need to adjust so as to show agent thoughts!)
 # 1) deepseek-ai/deepseek-v3.2 (1.0 / 0.95) - Baseline.
@@ -41,7 +41,8 @@ retrievers:
 # 5) meta/llama-3.3-70b-instruct (0.6 / 0.95)
 
 # BEST EMBEDDER so Far:
-# nvidia/llama-3_2-nemoretriever-300m-embed-v2
+# 1) nvidia/llama-3_2-nemoretriever-300m-embed-v2
+# 2) nvidia/nv-embedqa-e5-v5
 
 llms:
   nim_llm:
@@ -49,7 +50,7 @@ llms:
     model_name: deepseek-ai/deepseek-v3.2
     temperature: 1.0
     top_p: 0.95
-    max_tokens: 16384
+    max_tokens: 32768
   nemotron_model:
     _type: nim
     model_name: nvidia/llama-3.3-nemotron-super-49b-v1.5
@@ -61,7 +62,7 @@ llms:
 embedders:
   milvus_embedder:
     _type: nim
-    model_name: nvidia/llama-3.2-nemoretriever-300m-embed-v2 # nvidia/nv-embedqa-e5-v5 # nvidia/llama-3.2-nemoretriever-300m-embed-v2
+    model_name: nvidia/llama-3.2-nemoretriever-300m-embed-v2
 
 functions:
   physicsnemo_docs_retriever_tool:
@@ -127,13 +128,6 @@ functions:
       2. IF CODE: Do not summarize. Return the actual class/function code verbatim.
       3. IF DOCS: Quote the specific instructions or configuration steps found in the Markdown.
       4. SYNTHESIS: Use the Markdown files to explain *how* to run the Code files you find.
-  
-  
-  # physicsnemo_docs_retriever_tool:
-  #   _type: webpage_query
-  #   webpage_url: https://docs.nvidia.com/physicsnemo/latest/index.html
-  #   description: "Search for information about PhysicsNemo. For any questions about PhysicsNemo, you must use this tool!"
-  #   embedder_name: nv-embedqa-e5-v5
 
   current_datetime:
     _type: current_datetime
@@ -169,15 +163,6 @@ functions:
     verbose: true
     parse_agent_response_max_retries: 4
 
-
-# workflow:
-#   _type: tool_calling_agent
-#   tool_names: [physicsnemo_docs_retriever_tool, physicsnemo_code_retriever_tool, wikipedia_search, current_datetime, code_generation]
-#   llm_name: nim_llm
-#   verbose: true
-#   handle_tool_errors: true
-#   parse_agent_response_max_retries: 3
-
 workflow:
   _type: reasoning_agent
   llm_name: nemotron_model
@@ -210,23 +195,3 @@ workflow:
       ### GENERAL RULES
       1. **EXHAUSTIVE ANSWER**: Your FINAL ANSWER must be exhaustive, including all imports and boilerplate code.
       2. **NO HALLUCINATION**: If the retrieved context does not contain the specific implementation details, state clearly that the information is missing rather than generating hypothetical code.
-
-eval:
-  general:
-    output_dir: .tmp/nat/examples/tool_calling_agent/
-    dataset:
-      _type: json
-      file_path: examples/agents/data/wikipedia.json
-  evaluators:
-    accuracy:
-      _type: ragas
-      metric: AnswerAccuracy
-      llm_name: nim_llm
-    relevance:
-      _type: ragas
-      metric: ContextRelevance
-      llm_name: nim_llm
-    groundedness:
-      _type: ragas
-      metric: ResponseGroundedness
-      llm_name: nim_llm
