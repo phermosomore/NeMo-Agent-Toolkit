@@ -18,3 +18,5 @@ Can you run this Hello World Example from PhysicsNemo and print the code and the
 I have Crash Simulation data from LS-DYNA and want to build an FEA Surrogate using PhysicsNemo. But first I need to use the PhysicsNemo Curator for the ETL and Data Processing. Explain how to do the first bit of organising the run data and do the data processing and give me relevant code and places in the codebase to look up if you have examples.
 
 Is there a transolver example with the Ahmed body dataset in the PhysicsNemo Repo?
+
+What is the maths behind the Transolver Model implemented in PhysicsNemo. I want you to read the paper and explain to me the model architecture and the decision making process behind it.

@@ -18,5 +18,12 @@
 CUR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 #python ${CUR_DIR}/langchain_web_ingest.py --start_url https://docs.nvidia.com/physicsnemo/latest/index.html --base_url  https://docs.nvidia.com/physicsnemo/latest/ --collection_name physicsnemo_docs --reset_collection --clean_cache
-python ${CUR_DIR}/langchain_web_ingest.py --base_dir ../physicsnemo --collection_name physicsnemo_code --reset_collection
-python ${CUR_DIR}/langchain_web_ingest.py --base_dir ../physicsnemo-curator --collection_name physicsnemo_curator_code --reset_collection
+#python ${CUR_DIR}/langchain_web_ingest.py --base_dir ../physicsnemo --collection_name physicsnemo_code --reset_collection
+#python ${CUR_DIR}/langchain_web_ingest.py --base_dir ../physicsnemo-curator --collection_name physicsnemo_curator_code --reset_collection
+
+# 1. Ingest arXiv Papers using the file
+# Note: Using larger chunks for 8k model support
+python ${CUR_DIR}/langchain_web_ingest.py \
+    --url_file ${CUR_DIR}/arxiv_urls.txt \
+    --collection_name physicsnemo_research \
+    --reset_collection

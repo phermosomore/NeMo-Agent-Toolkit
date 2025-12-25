@@ -9,7 +9,8 @@ import sys
 import ast
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
-
+import argparse
+import asyncio
 import requests
 from bs4 import BeautifulSoup
 from langchain.schema import Document
@@ -19,6 +20,7 @@ from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
 from langchain_text_splitters import Language
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyMuPDFLoader
 from pymilvus import Collection
 from pymilvus import connections
 from pymilvus import utility
@@ -36,6 +38,70 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 logger = logging.getLogger(__name__)
+
+def process_arxiv_url(url: str, chunk_size: int = 16000, chunk_overlap: int = 2000) -> list[Document]:
+    """
+    Downloads arXiv PDF, converts to text, and splits using large-context parameters.
+    Default chunk_size 16000 chars ~= 4000 tokens (well within the 8k limit).
+    """
+    # 1. Normalize URL to PDF
+    # Handles http/https, www, and query parameters
+    clean_url = url.split('?')[0].strip()
+    if "arxiv.org/abs/" in clean_url:
+        pdf_url = clean_url.replace("/abs/", "/pdf/")
+    elif "arxiv.org/pdf/" in clean_url:
+        pdf_url = clean_url
+    else:
+        logger.warning(f"URL {url} does not look like a standard arXiv link. Attempting direct download.")
+        pdf_url = clean_url
+        
+    if not pdf_url.endswith(".pdf"):
+        pdf_url += ".pdf"
+
+    logger.info(f"Processing arXiv Paper: {clean_url} -> {pdf_url}")
+
+    try:
+        # 2. Download
+        response = requests.get(pdf_url, timeout=60)
+        response.raise_for_status()
+        
+        temp_filename = f"temp_{uuid4()}.pdf"
+        with open(temp_filename, "wb") as f:
+            f.write(response.content)
+            
+        # 3. Load with PyMuPDF (Cleanest extraction for scientific layout)
+        loader = PyMuPDFLoader(temp_filename)
+        raw_docs = loader.load()
+        
+        # 4. Merge Page Content
+        # PDFs split by page. We want to merge them first, THEN split by token/char limit
+        # to avoid arbitrary splits at page footers.
+        full_text = "\n\n".join([d.page_content for d in raw_docs])
+        
+        # 5. Clean up
+        os.remove(temp_filename)
+        
+        # 6. Split with Large Context
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, 
+            chunk_overlap=chunk_overlap,
+            separators=["\n## ", "\n### ", "\n\n", "\n", " ", ""] # Try to split on headers first
+        )
+        
+        # Create docs
+        chunks = text_splitter.create_documents([full_text])
+        
+        # 7. Apply Metadata
+        for d in chunks:
+            d.metadata['source'] = clean_url # Keep the original ABS url for the user reference
+            d.metadata['title'] = f"arXiv:{clean_url.split('/')[-1]}"
+            d.metadata = sanitize_metadata(d.metadata)
+            
+        return chunks
+
+    except Exception as e:
+        logger.error(f"Failed to process arXiv URL {url}: {e}")
+        return []
 
 # --- NEW: AST Splitter Logic (Optimized for 8k Context) ---
 
@@ -478,6 +544,15 @@ async def main(*, urls, milvus_uri, collection_name, clean_cache, embedding_mode
     doc_ids = []
     
     for url in urls:
+        # --- NEW LOGIC START ---
+        if "arxiv.org" in url:
+            docs = process_arxiv_url(url)
+            if docs:
+                ids = [str(uuid4()) for _ in range(len(docs))]
+                doc_ids.extend(await vector_store.aadd_documents(documents=docs, ids=ids))
+            continue
+        # --- NEW LOGIC END ---
+
         filename, _ = get_file_path_from_url(url, base_path)
         
         if not filename or not os.path.exists(filename):
@@ -508,10 +583,6 @@ async def main(*, urls, milvus_uri, collection_name, clean_cache, embedding_mode
     return doc_ids
 
 if __name__ == "__main__":
-    import argparse
-    import asyncio
-
-    # Default URLs
     PHYSNEMO_START_URL = "https://docs.nvidia.com/physicsnemo/latest/index.html"
     PHYSNEMO_BASE_URL = "https://docs.nvidia.com/physicsnemo/latest/"
     PHYSNEMO_COLLECTION_NAME = "physicsnemo_docs"
@@ -522,6 +593,7 @@ if __name__ == "__main__":
     
     url_group = parser.add_argument_group('URL sources')
     url_group.add_argument("--urls", default=[], action="append")
+    url_group.add_argument("--url_file", default=None, help="Path to a .txt file containing a list of URLs")
     url_group.add_argument("--start_url", default=None)
     url_group.add_argument("--sitemap", default=None)
     url_group.add_argument("--base_url", default=None)
@@ -541,7 +613,6 @@ if __name__ == "__main__":
     parser.add_argument("--clean_cache", default=False, action="store_true")
     parser.add_argument("--list_only", default=False, action="store_true")
     parser.add_argument("--reset_collection", action="store_true")
-    # Updated default embedder here as well for command line exposure
     parser.add_argument("--embedding_model", default="nvidia/llama-3.2-nemoretriever-300m-embed-v2")
     args = parser.parse_args()
 
@@ -571,14 +642,29 @@ if __name__ == "__main__":
             embedding_model=args.embedding_model,
         ))
     else:
-        # Web scraping logic
+        urls = []
+        if args.url_file:
+            if os.path.exists(args.url_file):
+                with open(args.url_file, 'r') as f:
+                    urls = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+                logger.info(f"Loaded {len(urls)} URLs from {args.url_file}")
+            else:
+                logger.error(f"URL file not found: {args.url_file}")
+                sys.exit(1)
+
+        if args.urls:
+            urls.extend(args.urls)
+        
         collection_name = args.collection_name or PHYSNEMO_COLLECTION_NAME
-        if args.urls: urls = args.urls
-        else:
+
+        # Logic: If no specific URLs provided, fall back to crawl mode
+        if not urls:
             start_url = args.start_url or PHYSNEMO_START_URL
             base_url = args.base_url or PHYSNEMO_BASE_URL
-            if args.crawl: urls = crawl_urls(start_url, base_url_filter=base_url, limit=args.limit)
-            else: urls = discover_urls(start_url, args.sitemap, base_url, args.limit)
+            if args.crawl: 
+                urls = crawl_urls(start_url, base_url_filter=base_url, limit=args.limit)
+            else: 
+                urls = discover_urls(start_url, args.sitemap, base_url, args.limit)
             
         if args.list_only:
             for u in urls: print(f"  - {u}")
