@@ -52,31 +52,43 @@ echo ""
 # Array to track background process PIDs for cleanup
 declare -a BG_PIDS=()
 declare -a DOCKER_SERVICES=()
+CLEANUP_ON_EXIT=true
 
 # Cleanup function
 cleanup() {
-    echo -e "\n${YELLOW}Shutting down all services...${NC}"
-    
-    # Kill background processes
-    for pid in "${BG_PIDS[@]}"; do
-        if kill -0 "$pid" 2>/dev/null; then
-            echo -e "${YELLOW}Stopping process $pid${NC}"
-            kill -TERM "$pid" 2>/dev/null || true
+    # Only cleanup if requested (on Ctrl+C or error, not normal exit)
+    if [ "$CLEANUP_ON_EXIT" = true ]; then
+        echo -e "\n${YELLOW}Shutting down all services...${NC}"
+        
+        # Kill background processes
+        for pid in "${BG_PIDS[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                echo -e "${YELLOW}Stopping process $pid${NC}"
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+        
+        # Stop Docker services
+        if [ ${#DOCKER_SERVICES[@]} -gt 0 ]; then
+            for service in "${DOCKER_SERVICES[@]}"; do
+                if [ "$service" = "milvus" ]; then
+                    echo -e "${YELLOW}Stopping Milvus...${NC}"
+                    docker compose -f examples/deploy/docker-compose.milvus.yml down 2>/dev/null || true
+                elif [ "$service" = "sandbox" ]; then
+                    echo -e "${YELLOW}Stopping sandbox container...${NC}"
+                    docker stop local-sandbox 2>/dev/null || true
+                    docker rm local-sandbox 2>/dev/null || true
+                fi
+            done
         fi
-    done
-    
-    # Stop Docker services
-    if [ ${#DOCKER_SERVICES[@]} -gt 0 ]; then
-        echo -e "${YELLOW}Stopping Docker services...${NC}"
-        docker compose -f examples/deploy/docker-compose.milvus.yml down
+        
+        echo -e "${GREEN}Cleanup complete${NC}"
     fi
-    
-    echo -e "${GREEN}Cleanup complete${NC}"
     exit 0
 }
 
-# Register cleanup function
-trap cleanup EXIT INT TERM
+# Register cleanup function for interrupts and errors only
+trap cleanup INT TERM
 
 # Step 1: Kill any existing processes on required ports
 echo -e "${YELLOW}[1/4] Cleaning up existing processes on ports 3000, 3001, 8000, 6000...${NC}"
@@ -158,23 +170,55 @@ echo ""
 
 # Step 3: Start Code Executor (Local Sandbox)
 echo -e "${YELLOW}[3/4] Starting Code Executor (Local Sandbox)...${NC}"
-SANDBOX_SCRIPT="$REPO_ROOT/src/nat/tool/code_execution/local_sandbox/start_local_sandbox.sh"
 
-if [ ! -f "$SANDBOX_SCRIPT" ]; then
-    echo -e "${RED}Error: Sandbox script not found at $SANDBOX_SCRIPT${NC}"
-    exit 1
+SANDBOX_NAME="local-sandbox"
+SANDBOX_DOCKERFILE="$REPO_ROOT/src/nat/tool/code_execution/local_sandbox/Dockerfile.sandbox"
+OUTPUT_DATA_PATH="$REPO_ROOT/examples/pynemo_engineer"
+DOCKER_COMMAND=${DOCKER_COMMAND:-"docker"}
+
+# Check if Docker image exists, build if needed
+if ! ${DOCKER_COMMAND} images ${SANDBOX_NAME} | grep -q "${SANDBOX_NAME}"; then
+    echo -e "${BLUE}  Building sandbox Docker image...${NC}"
+    cd "$REPO_ROOT"
+    ${DOCKER_COMMAND} build --tag=${SANDBOX_NAME} \
+        --build-arg="UWSGI_PROCESSES=10" \
+        --build-arg="UWSGI_CHEAPER=5" \
+        -f "$SANDBOX_DOCKERFILE" . > /tmp/pynemo_sandbox_build.log 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Error: Failed to build sandbox image${NC}"
+        echo -e "${YELLOW}Check log: /tmp/pynemo_sandbox_build.log${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Sandbox image built${NC}"
+else
+    echo -e "${BLUE}  Using existing sandbox Docker image${NC}"
 fi
 
-# Make sure the script is executable
-chmod +x "$SANDBOX_SCRIPT"
+# Stop any existing sandbox container
+${DOCKER_COMMAND} stop ${SANDBOX_NAME} 2>/dev/null || true
+${DOCKER_COMMAND} rm ${SANDBOX_NAME} 2>/dev/null || true
 
-# Start sandbox in background and capture its PID
-nohup "$SANDBOX_SCRIPT" local-sandbox examples/pynemo_engineer > /tmp/pynemo_sandbox.log 2>&1 &
-SANDBOX_PID=$!
-BG_PIDS+=($SANDBOX_PID)
-echo -e "${GREEN}✓ Code Executor started (PID: $SANDBOX_PID)${NC}"
-echo -e "${BLUE}  Log: /tmp/pynemo_sandbox.log${NC}"
-sleep 3
+# Start sandbox container in detached mode
+echo -e "${BLUE}  Starting sandbox container...${NC}"
+${DOCKER_COMMAND} run -d --name=${SANDBOX_NAME} \
+  -p 6000:6000 \
+  -v "${OUTPUT_DATA_PATH}:/workspace" \
+  ${SANDBOX_NAME} > /tmp/pynemo_sandbox_id.txt 2>&1
+
+if [ $? -eq 0 ]; then
+    SANDBOX_CONTAINER_ID=$(cat /tmp/pynemo_sandbox_id.txt)
+    echo -e "${GREEN}✓ Code Executor started (Container: ${SANDBOX_CONTAINER_ID:0:12})${NC}"
+    echo -e "${BLUE}  Container name: ${SANDBOX_NAME}${NC}"
+    echo -e "${BLUE}  Port: 6000${NC}"
+    echo -e "${BLUE}  Logs: docker logs ${SANDBOX_NAME}${NC}"
+    # Track for cleanup
+    DOCKER_SERVICES+=("sandbox")
+else
+    echo -e "${RED}Error: Failed to start sandbox container${NC}"
+    echo -e "${YELLOW}Check: docker logs ${SANDBOX_NAME}${NC}"
+    exit 1
+fi
+sleep 2
 echo ""
 
 # Step 4: Start UI (nat-ui)
@@ -195,14 +239,25 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start UI in background
-nohup npm run dev > /tmp/pynemo_ui.log 2>&1 &
+npm run dev > /tmp/pynemo_ui.log 2>&1 &
 UI_PID=$!
 BG_PIDS+=($UI_PID)
 cd "$REPO_ROOT"
-echo -e "${GREEN}✓ UI started (PID: $UI_PID)${NC}"
-echo -e "${BLUE}  Log: /tmp/pynemo_ui.log${NC}"
-echo -e "${BLUE}  Waiting for UI to initialize (15 seconds)...${NC}"
-sleep 15
+
+# Wait briefly to ensure it started
+sleep 2
+
+# Verify the UI is still running
+if kill -0 $UI_PID 2>/dev/null; then
+    echo -e "${GREEN}✓ UI started (PID: $UI_PID)${NC}"
+    echo -e "${BLUE}  Log: /tmp/pynemo_ui.log${NC}"
+    echo -e "${BLUE}  Waiting for UI to initialize (15 seconds)...${NC}"
+    sleep 13  # Total 15 seconds (2 + 13)
+else
+    echo -e "${RED}Error: UI failed to start${NC}"
+    echo -e "${YELLOW}Check log: /tmp/pynemo_ui.log${NC}"
+    exit 1
+fi
 echo ""
 
 # Step 5: Optionally Start NAT Server
@@ -221,7 +276,7 @@ if [ "$SERVE_NAT" = true ]; then
     echo ""
     echo -e "${BLUE}Service Status:${NC}"
     echo -e "  • Milvus (Vector DB):  ${GREEN}Running${NC} (Docker)"
-    echo -e "  • Code Executor:       ${GREEN}Running${NC} (PID: $SANDBOX_PID, Log: /tmp/pynemo_sandbox.log)"
+    echo -e "  • Code Executor:       ${GREEN}Running${NC} (Container: local-sandbox, Port: 6000)"
     echo -e "  • UI:                  ${GREEN}Running${NC} (PID: $UI_PID, Log: /tmp/pynemo_ui.log)"
     echo -e "  • UI URL:              ${BLUE}http://localhost:3000${NC}"
     echo -e "  • NAT Server:          ${YELLOW}Starting...${NC}"
@@ -240,7 +295,7 @@ else
     echo ""
     echo -e "${BLUE}Service Status:${NC}"
     echo -e "  • Milvus (Vector DB):  ${GREEN}Running${NC} (Docker)"
-    echo -e "  • Code Executor:       ${GREEN}Running${NC} (PID: $SANDBOX_PID, Log: /tmp/pynemo_sandbox.log)"
+    echo -e "  • Code Executor:       ${GREEN}Running${NC} (Container: local-sandbox, Port: 6000)"
     echo -e "  • UI:                  ${GREEN}Running${NC} (PID: $UI_PID, Log: /tmp/pynemo_ui.log)"
     echo -e "  • UI URL:              ${BLUE}http://localhost:3000${NC}"
     echo -e "  • NAT Server:          ${YELLOW}Not started${NC}"
@@ -254,14 +309,29 @@ else
     echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
     echo -e "${GREEN}========================================${NC}\n"
     
+    # Disable cleanup on normal exit - services should persist
+    CLEANUP_ON_EXIT=false
+    
     # Keep the script running so services stay up
-    echo -e "${BLUE}Services are running in the background. This terminal will stay open.${NC}"
-    echo -e "${BLUE}Background process logs:${NC}"
-    echo -e "  • Code Executor: /tmp/pynemo_sandbox.log"
-    echo -e "  • UI: /tmp/pynemo_ui.log"
+    echo -e "${BLUE}Services are running in the background. Monitoring...${NC}"
+    echo -e "${BLUE}View logs with:${NC}"
+    echo -e "  • Code Executor: docker logs local-sandbox"
+    echo -e "  • UI: tail -f /tmp/pynemo_ui.log"
+    echo -e "  • Milvus: docker compose -f examples/deploy/docker-compose.milvus.yml logs"
     echo ""
     
-    # Wait indefinitely (until Ctrl+C)
-    wait
+    # Disown the background processes so they survive script exit
+    for pid in "${BG_PIDS[@]}"; do
+        disown $pid 2>/dev/null || true
+    done
+    
+    echo -e "${BLUE}Services will continue running in the background.${NC}"
+    echo -e "${BLUE}To stop them, run:${NC}"
+    echo -e "  ${GREEN}./examples/pynemo_engineer/stop_all.sh${NC}"
+    echo -e "${BLUE}Or stop services manually:${NC}"
+    echo -e "  kill $UI_PID"
+    echo -e "  docker stop local-sandbox && docker rm local-sandbox"
+    echo -e "  docker compose -f examples/deploy/docker-compose.milvus.yml down"
+    echo ""
 fi
 

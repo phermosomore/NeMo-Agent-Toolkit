@@ -13,6 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# # ========================================
+# # OBSERVABILITY AND TRACING CONFIGURATION
+# # ========================================
+# general:
+#   telemetry:
+#     logging:
+#       console:
+#         _type: console
+#         level: INFO  # Set to DEBUG for more verbose output
+#     tracing:
+#       trace_file:
+#         _type: file
+#         output_path: pynemo_engineer_traces.jsonl
+#         project: pynemo_engineer
+#         mode: append
+#         enable_rolling: false
+
 retrievers:
   physicsnemo_docs_retriever:
     _type: milvus_retriever
@@ -39,12 +56,15 @@ retrievers:
     embedding_model: milvus_embedder
     top_k: 10
 
-# BEST LLMS so Far: (need to adjust so as to show agent thoughts!)
+# BEST NIM LLMS so Far: (need to adjust so as to show agent thoughts!)
 # 1) deepseek-ai/deepseek-v3.2 (1.0 / 0.95) - Baseline. But quite SLOW.
 # 2) meta/llama-4-maverick-17b-128e-instruct - Close to Baseline. 0.6 / 0.95
 # 3) nvidia/llama-3.3-nemotron-super-49b-v1.5 (0.6 / 0.95) - Can support thinking.
 # 4) mistralai/mistral-large-3-675b-instruct-2512 (temp @ 0.1 / 0.95)
 # 5) meta/llama-3.3-70b-instruct (0.6 / 0.95)
+
+# BEST Reasoning Agent LLMS so Far: (need to adjust so as to show agent thoughts!)
+# 1) nvidia/llama-3.3-nemotron-super-49b-v1.5 (0.6 / 0.95) - Thinking On.
 
 # BEST EMBEDDER so Far:
 # 1) nvidia/llama-3_2-nemoretriever-300m-embed-v2
@@ -63,7 +83,7 @@ llms:
     thinking: true
     temperature: 0.6
     top_p: 0.95
-    max_tokens: 32768
+    max_tokens: 16384
 
 embedders:
   milvus_embedder:
