@@ -34,18 +34,18 @@ From the repository root:
 
 ```bash
 # Run with auto-generated timestamp name
-./examples/pynemo_dataprep/evals/run_eval.sh
+./examples/pynemo_engineer/evals/run_eval.sh
 
 # Run with custom name
-./examples/pynemo_dataprep/evals/run_eval.sh baseline
-./examples/pynemo_dataprep/evals/run_eval.sh experiment_v2
-./examples/pynemo_dataprep/evals/run_eval.sh temperature_0.7
+./examples/pynemo_engineer/evals/run_eval.sh baseline
+./examples/pynemo_engineer/evals/run_eval.sh experiment_v2
+./examples/pynemo_engineer/evals/run_eval.sh temperature_0.7
 ```
 
 Or from the evals directory:
 
 ```bash
-cd examples/pynemo_dataprep/evals
+cd examples/pynemo_engineer/evals
 ./run_eval.sh my_run_name
 ```
 
@@ -54,7 +54,7 @@ cd examples/pynemo_dataprep/evals
 To test a single question manually:
 
 ```bash
-nat run --config_file=examples/pynemo_dataprep/configs/config.yaml \
+nat run --config_file=examples/pynemo_engineer/configs/config.yaml \
   --input "Your question here"
 ```
 
@@ -126,7 +126,7 @@ grep -i "error" evals/results/*/*.txt
 Edit the script variables at the top of `run_eval.sh`:
 
 ```bash
-CONFIG_FILE="examples/pynemo_dataprep/configs/config.yaml"  # Change config file
+CONFIG_FILE="examples/pynemo_engineer/configs/config.yaml"  # Change config file
 QUESTIONS_FILE="${SCRIPT_DIR}/questions.txt"                # Change questions file
 RESULTS_DIR="${SCRIPT_DIR}/results"                         # Change output directory
 ```
@@ -177,7 +177,7 @@ The comparison script shows:
 ## Requirements
 
 - NeMo Agent Toolkit installed and configured
-- Valid configuration file at `examples/pynemo_dataprep/configs/config.yaml`
+- Valid configuration file at `examples/pynemo_engineer/configs/config.yaml`
 - Required environment variables set (e.g., `NVIDIA_API_KEY`)
 - Milvus database populated with PhysicsNemo documentation (if using RAG)
 

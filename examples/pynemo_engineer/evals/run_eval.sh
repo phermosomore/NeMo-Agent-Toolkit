@@ -11,7 +11,7 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 QUESTIONS_FILE="${SCRIPT_DIR}/questions.txt"
-CONFIG_FILE="examples/pynemo_dataprep/configs/config.yaml"
+CONFIG_FILE="examples/pynemo_engineer/configs/config.yaml"
 
 # Get run name from argument or generate timestamp
 if [ -n "$1" ]; then
