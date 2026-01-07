@@ -9,6 +9,7 @@ This directory contains a simple evaluation system for running test questions th
 - `list_runs.sh` - Lists all available evaluation runs with statistics
 - `summarize_results.sh` - Shows summary statistics for a specific run
 - `compare_runs.sh` - Compares results between two evaluation runs
+- `extract_answers.py` - Python script that extracts questions and final answers into a Markdown file
 - `results/` - Directory where evaluation results are saved (created automatically)
 
 ## Question Format
@@ -48,6 +49,36 @@ Or from the evals directory:
 cd examples/pynemo_engineer/evals
 ./run_eval.sh my_run_name
 ```
+
+### Retry on Failure
+
+The `--retry` flag enables automatic retry for failed questions, which is useful for handling network timeouts and transient errors:
+
+```bash
+# Enable retry with default settings (3 retries, 5 seconds delay)
+./run_eval.sh --retry my_run_name
+
+# Customize retry behavior
+./run_eval.sh --retry --max-retries 5 --retry-delay 10 my_run_name
+
+# For environments with frequent timeouts
+./run_eval.sh --retry --max-retries 10 --retry-delay 30 robust_run
+
+# See all options
+./run_eval.sh --help
+```
+
+**Available Options:**
+- `--retry` - Enable retry on failure (useful for network timeouts)
+- `--max-retries N` - Maximum number of retry attempts (default: 3)
+- `--retry-delay N` - Delay between retries in seconds (default: 5)
+
+When retry is enabled:
+- Failed questions are automatically retried up to the maximum number of attempts
+- A delay is applied between retry attempts to handle rate limiting
+- All retry attempts are logged in the result files
+- Questions that eventually succeed after retries are marked as successful
+- The summary file includes retry configuration information
 
 ### Run a Single Question
 
@@ -117,6 +148,91 @@ grep -i "error" evals/results/baseline/*.txt
 
 # Search across ALL runs
 grep -i "error" evals/results/*/*.txt
+```
+
+## Extract Final Answers to Markdown
+
+The `extract_answers.py` script extracts questions and their final answers from evaluation results and combines them into a single Markdown file. This is useful for creating clean reports or sharing results.
+
+### Basic Usage
+
+From the repository root:
+
+```bash
+# Extract from a specific run (creates final_answers.md in the run directory)
+python examples/pynemo_engineer/evals/extract_answers.py run_20260107_154802
+
+# Extract with custom output file
+python examples/pynemo_engineer/evals/extract_answers.py run_20260107_154802 --output my_report.md
+
+# Use full path to results directory
+python examples/pynemo_engineer/evals/extract_answers.py evals/results/baseline --output baseline_answers.md
+```
+
+Or from the evals directory:
+
+```bash
+cd examples/pynemo_engineer/evals
+
+# Extract from run name
+./extract_answers.py run_20260107_154802
+
+# Extract with custom output
+./extract_answers.py baseline --output baseline_report.md
+```
+
+### Output Format
+
+The script creates a Markdown file containing:
+- Run metadata (run name, total questions)
+- Each question numbered with its full text
+- The final answer extracted from the agent's response
+- Clean formatting with proper Markdown structure
+
+Example output structure:
+
+```markdown
+# Evaluation Results: run_20260107_154802
+
+**Total Questions:** 5
+
+---
+
+## Question 1
+
+**Q:** What model architectures are supported?
+
+**Answer:**
+
+Based on the documentation, PhysicsNemo supports several architectures...
+
+---
+
+## Question 2
+
+...
+```
+
+### Features
+
+- **Clean extraction**: Removes ANSI color codes and debug output
+- **Automatic detection**: Finds "Final Answer:" in agent responses
+- **Flexible input**: Works with run names or full paths
+- **Custom output**: Specify output file location
+
+### Common Use Cases
+
+```bash
+# Create a summary report for sharing
+./extract_answers.py baseline --output reports/baseline_summary.md
+
+# Extract from the most recent run
+./extract_answers.py $(ls -t results/ | head -1)
+
+# Create reports for multiple runs
+for run in baseline experiment_v1 experiment_v2; do
+    ./extract_answers.py $run --output reports/${run}_answers.md
+done
 ```
 
 ## Customization
