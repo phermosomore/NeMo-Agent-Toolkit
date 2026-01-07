@@ -40,7 +40,7 @@ retrievers:
     top_k: 10
 
 # BEST LLMS so Far: (need to adjust so as to show agent thoughts!)
-# 1) deepseek-ai/deepseek-v3.2 (1.0 / 0.95) - Baseline.
+# 1) deepseek-ai/deepseek-v3.2 (1.0 / 0.95) - Baseline. But quite SLOW.
 # 2) meta/llama-4-maverick-17b-128e-instruct - Close to Baseline. 0.6 / 0.95
 # 3) nvidia/llama-3.3-nemotron-super-49b-v1.5 (0.6 / 0.95) - Can support thinking.
 # 4) mistralai/mistral-large-3-675b-instruct-2512 (temp @ 0.1 / 0.95)
