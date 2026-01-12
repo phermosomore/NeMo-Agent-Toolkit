@@ -180,30 +180,66 @@ functions:
 
   current_datetime:
     _type: current_datetime
+
   code_generation:
     _type: code_generation
     programming_language: "Python"
     description: >
       Useful to generate Python code.
       
+      ### 📂 REPOSITORY FILE PATHS
+      The libraries are pre-installed. However, if you need to **read configuration files, load data, or reference example scripts**, use these absolute paths:
+      1. **PhysicsNemo**: `/workspace/physicsnemo` (e.g., `/workspace/physicsnemo/examples/conf`)
+      2. **PhysicsNemo Curator**: `/workspace/physicsnemo-curator`
+      
       ### 🚨 CRITICAL EXECUTION RULES 🚨
-      1. **NO ENTRY GUARDS**: Strictly **FORBIDDEN** to use `if __name__ == "__main__":`.
-         * **Reason**: The execution sandbox ignores this block, resulting in empty output/silent failure.
-      2. **DIRECT CALL**: You MUST call your `main()` function (or entry point) directly at the global scope at the bottom of the script.
-      3. **Example**:
-         ```python
-         def main():
-             print("Hello")
-         
-         # CORRECT:
-         main()
-         ```
+      1. **GLOBAL EXECUTION**: The environment executes the script top-down. You MUST call your entry function explicitly at the bottom.
+      2. **NO GUARD BLOCKS**: Do NOT use `if __name__ == "__main__":`. 
+         * **Result**: The sandbox ignores this block completely, resulting in SILENT FAILURE.
+      3. **PRINT, DON'T RETURN**: The sandbox only captures `stdout`. `return` values are lost. You must `print()` your final results.
+      4. **FILE OUTPUTS**: Unless explicitly instructed otherwise, ALL generated files (images, plots, CSVs) MUST be saved to the `/workspace/` directory.
+         * **Reason**: Relative paths (e.g., `./plot.png`) may be lost or inaccessible. Always use absolute paths starting with `/workspace/`.
+      
+      ### ✅ CORRECT PATTERN (DO THIS)
+      ```python
+      import os
+      import yaml
+      
+      def run_job():
+          # USE ABSOLUTE PATHS to find repo assets (configs, examples)
+          config_path = "/workspace/physicsnemo/examples/conf/config.yaml"
+          
+          if os.path.exists(config_path):
+              print(f"Loading config from {config_path}")
+              with open(config_path) as f:
+                  conf = yaml.safe_load(f)
+          else:
+              print(f"Config not found at {config_path}")
+          
+          # RULE #4: Save results to /workspace/
+          output_path = "/workspace/simulation_result.png"
+          # ... generate plot ...
+          
+          # RULE #3: Print status
+          print(f"Job complete. Output at {output_path}")
+      
+      # RULE #1 & #2: Call function directly (No guards)
+      run_job()
+      ```
+      
+      ### ❌ INCORRECT PATTERN (DO NOT USE)
+      ```python
+      if __name__ == "__main__": 
+          # FAIL: Block ignored by sandbox
+          pass
+      ```
     llm_name: nim_llm
     verbose: true
+
   code_execution:
       _type: code_execution
-      timeout: 30
-      max_output_characters: 3000
+      timeout: 60
+      max_output_characters: 12000
       sandbox_uri: http://localhost:6000
   react_agent:
     _type: react_agent
@@ -244,3 +280,29 @@ workflow:
       ### GENERAL RULES
       1. **EXHAUSTIVE ANSWER**: Your FINAL ANSWER must be exhaustive, including all imports and boilerplate code.
       2. **NO HALLUCINATION**: If the retrieved context does not contain the specific implementation details, state clearly that the information is missing rather than generating hypothetical code.
+
+      ### FILE SYSTEM AWARENESS STRATEGY FOR CODE EXECUTION ###
+      You are running code execution inside a sandboxed Linux container. The file structure here may differ from the documentation.
+      
+      **MANDATORY FIRST STEP FOR CODE EXECUTION:**
+      Before writing any Python script that relies on file paths (like configs or data):
+      1.  **EXPLORE FIRST**: Use `code_generation` + `code_execution` to run a Python script that discovers the actual path.
+      2.  **USE `os.walk`**: Do not guess paths. Use `os.walk` or `glob` to find the target file.
+      
+      **Example Discovery Script:**
+      ```python
+      import os
+      
+      def find_file(filename, search_path="/"):
+          for root, dirs, files in os.walk(search_path):
+              if filename in files:
+                  return os.path.join(root, filename)
+          return None
+      
+      def main():
+          # E.g. finding 'config.yaml'
+          print(f"DEBUG: Found at {find_file('config.yaml', '/workspace')}") # Adjust search_path based on likely root
+      
+      main()
+      ```
+      3.  **ADAPT**: Once you see the output of the discovery script, use that *absolute path* in your final code generation.

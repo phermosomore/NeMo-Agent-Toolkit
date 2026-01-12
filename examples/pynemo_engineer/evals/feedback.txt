@@ -1,0 +1,5 @@
+
+Feedback:
+* For data processing try PhysicsNemo Curator always. It tried to do it with the raw commands. [TODO]
+* It still uses if __name__ == "__main__": sometimes. We probably need to remove that by hand. Or better prompting [FIXED]
+* Outputs to be saved under /workspace so they are visisble outside container. [FIXED]

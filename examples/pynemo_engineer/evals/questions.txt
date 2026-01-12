@@ -21,8 +21,13 @@ Is there a transolver example with the Ahmed body dataset in the PhysicsNemo Rep
 
 What is the maths behind the Transolver Model implemented in PhysicsNemo. I want you to read the paper and explain to me the model architecture and the decision making process behind it.
 
-# Real FEA Example - GTC Lab 2026.
-I have run 3 OpenRadioss Simulations for a Bumper Beam Crash Example. You have the run data under the /workspace/container/dataset folder that you can interact with via your local sandbox for code execution. Inside each run folder you have the LS-DYNA D3Plot Files. Can you please write for me the commands I need to run the ETL to convert the raw files into an AI Optimized format that I can use to train deep learning surrogates using PhysicsNemo. Please explain what the ETL is doing too. 
+# Real FEA Example - GTC Lab 2026. - Chat Hisotry Enabled!
+I have run 3 OpenRadioss Simulations for a Bumper Beam Crash Example. You have the run data under the /workspace/container/dataset/raw folder that you can interact with via your local sandbox for code execution. Inside each run folder you have the LS-DYNA D3Plot Files. Can you please write for me the PhysicsNemo Curator commands I need to run the ETL to convert the raw files into an AI Optimized format that I can use to train deep learning surrogates using PhysicsNemo. Please explain what the ETL is doing too.
 
+Please proceed and run the ZARR and VTP ETL.
 
+Can you please generate a PNG File of the 3D View of the First Timestep of one the VTP Files where you colour the Point Cloud by Thickness. Use Matplotlib. Make sure to use equal axes to ensure the physical dimensions are respected.
 
+Or the last 2 together:
+
+Please proceed and run the ZARR and VTP ETL. Once you are done and this is successful, can you please generate a PNG File of the 3D View of the First Timestep of one the VTP Files where you colour the Point Cloud by Thickness. Use Matplotlib and save under /workspace. Make sure to use equal axes to ensure the physical dimensions are respected.
