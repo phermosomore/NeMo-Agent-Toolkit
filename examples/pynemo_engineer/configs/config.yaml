@@ -100,6 +100,10 @@ embedders:
     model_name: nvidia/llama-3.2-nemoretriever-300m-embed-v2
 
 functions:
+  file_manager:
+    _type: file_io
+    root_dir: "examples/pynemo_engineer"
+
   physicsnemo_docs_retriever_tool:
     _type: nat_retriever
     retriever: physicsnemo_docs_retriever
@@ -148,9 +152,9 @@ functions:
     topic: >
       Retrieve information from the PhysicsNemo Curator codebase, including Source Code (.py) AND Internal Documentation (.md, READMEs).
       Use this tool to find:
-      1. Class/Function implementations.
-      2. "How-to" guides and tutorials located inside the repository.
-      3. Configuration examples often found in README files.
+      1. Class/Function implementations for Data Curation, ETL, and Data Loading.
+      2. "How-to" guides and tutorials specifically for the Curator module.
+      3. Configuration examples for data pipelines.
 
       CRITICAL CITATION RULES:
       1. The specific filename is found in the metadata field "source" or "file_name" of the retrieved chunk. 
@@ -243,7 +247,7 @@ functions:
       sandbox_uri: http://localhost:6000
   react_agent:
     _type: react_agent
-    tool_names: [ physicsnemo_docs_retriever_tool, physicsnemo_code_retriever_tool, physicsnemo_curator_code_retriever_tool, physicsnemo_research_retriever_tool, current_datetime, code_generation, code_execution ]
+    tool_names: [ physicsnemo_docs_retriever_tool, physicsnemo_code_retriever_tool, physicsnemo_curator_code_retriever_tool, physicsnemo_research_retriever_tool, current_datetime, code_generation, code_execution, file_manager ]
     llm_name: nim_llm
     verbose: true
     parse_agent_response_max_retries: 4
@@ -280,6 +284,43 @@ workflow:
       ### GENERAL RULES
       1. **EXHAUSTIVE ANSWER**: Your FINAL ANSWER must be exhaustive, including all imports and boilerplate code.
       2. **NO HALLUCINATION**: If the retrieved context does not contain the specific implementation details, state clearly that the information is missing rather than generating hypothetical code.
+
+      ### DATA CURATION PRIORITY PROTOCOL
+      If the user asks about **Data Preparation, Data Curation, ETL, Preprocessing, or Loading Data** for CAE/Physics ML/PhysicsNemo:
+      1. **MANDATORY FIRST CHECK**: You MUST first search the `physicsnemo_curator_code_retriever_tool` and `physicsnemo_curator_code_retriever`.
+      2. **PRIORITIZE CURATOR**: PhysicsNemo Curator is the dedicated, GPU-accelerated library for these tasks. 
+         * **DO NOT** suggest standard libraries (pyvista, lasso, pandas, open3d) unless you have confirmed that PhysicsNemo Curator lacks the specific functionality requested.
+         * **ALWAYS** look for Curator pipelines (e.g., VTK extraction, mesh processing) before writing custom scripts.
+      3. **FALLBACK**: Only resort to native libraries if the Curator tool retrieval yields no relevant results.
+
+      ### SANDBOX VS. LOCAL FILESYSTEM SEPARATION
+      You operate in two distinct file systems. DO NOT confuse them.
+
+      1. **THE SANDBOX (Code Execution Environment)**:
+         * **Where**: Inside the Docker container where `code_execution` runs.
+         * **Access**: You CANNOT use `file_manager` here. You can ONLY inspect files by writing Python code (e.g., `import os; print(os.listdir())`) and running it via `code_execution`.
+         * **Usage**: Use this for finding data paths (e.g., `/workspace/dataset/raw`), running intermediate tests, and verifying logic.
+
+      2. **THE LOCAL FILESYSTEM (User Workspace)**:
+         * **Where**: The environment where the Agent and `file_manager` run.
+         * **Access**: You access this EXCLUSIVELY via the `file_manager` tool.
+         * **Usage**: Use this for instance to save the **Finalized Python Scripts** so the user can access them later.
+         * **Prohibition**: NEVER use `file_manager` to list/read files that are supposed to be inside the Sandbox. It will fail.
+
+      3. **VOLUME MAPPING CONTEXT (CRITICAL - BIDIRECTIONAL)**: 
+         * The directory you access via `file_manager` (Local) is **volume-mapped** to `/workspace` inside the Sandbox.
+         * **Agent -> Sandbox**: If you use `file_manager` to write `script.py` locally, it immediately becomes available to `code_execution` at `/workspace/script.py`.
+         * **Sandbox -> User**: If your Python script saves an output (e.g., `plot.png`) to `/workspace/plot.png`, it immediately becomes visible to the user (and `file_manager`) locally.
+
+      ### CODE PERSISTENCE PROTOCOL
+      Whenever you generate a complete, functional Python script that the user might want to re-run (e.g., **Data Processing/ETL scripts**, **Visualization scripts**, **Training scripts**, **Inference scripts**), you MUST automatically save it to the file system using the `file_manager` tool.
+      
+      **Procedure:**
+      1. **Generate the Code**: Write the complete script content.
+      2. **Persist**: Immediately call `file_manager` with `operation='write'` to save the file.
+         * Use a descriptive name (e.g., `run_etl.py`, `visualize_results.py`).
+         * Path: Save to the root workspace (e.g., `run_etl.py`).
+      3. **Notify**: In your Final Answer, explicitly state: "I have saved this script for you at `<filename>.py`."
 
       ### FILE SYSTEM AWARENESS STRATEGY FOR CODE EXECUTION ###
       You are running code execution inside a sandboxed Linux container. The file structure here may differ from the documentation.
