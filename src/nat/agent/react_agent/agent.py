@@ -289,36 +289,51 @@ class ReActAgentGraph(DualNodeAgent):
                      agent_thoughts.tool_input)
 
         # Run the tool. Try to use structured input, if possible.
+        #
+        # NOTE: ReAct agents often emit Python-dict-looking strings (single quotes),
+        # and may embed JSON strings (e.g. code) that make quote-normalization invalid JSON.
+        # We therefore attempt JSON first, then quote-normalized JSON, then a safe Python literal parse.
         tool_input_str = agent_thoughts.tool_input.strip()
 
-        try:
-            tool_input = json.loads(tool_input_str) if tool_input_str != 'None' else tool_input_str
-            logger.debug("%s Successfully parsed structured tool input from Action Input", AGENT_LOG_PREFIX)
+        if tool_input_str == "None":
+            tool_input = tool_input_str
+        else:
+            try:
+                tool_input = json.loads(tool_input_str)
+                logger.debug("%s Successfully parsed structured tool input from Action Input", AGENT_LOG_PREFIX)
+            except JSONDecodeError as original_ex:
+                parsed = None
 
-        except JSONDecodeError as original_ex:
-            if self.normalize_tool_input_quotes:
-                # If initial JSON parsing fails, try with quote normalization as a fallback
-                normalized_str = tool_input_str.replace("'", '"')
-                try:
-                    tool_input = json.loads(normalized_str)
-                    logger.debug("%s Successfully parsed structured tool input after quote normalization",
-                                 AGENT_LOG_PREFIX)
-                except JSONDecodeError:
-                    # the quote normalization failed, use raw string input
+                if self.normalize_tool_input_quotes:
+                    # If initial JSON parsing fails, try with quote normalization as a fallback
+                    normalized_str = tool_input_str.replace("'", '"')
+                    try:
+                        parsed = json.loads(normalized_str)
+                        logger.debug("%s Successfully parsed structured tool input after quote normalization",
+                                     AGENT_LOG_PREFIX)
+                    except JSONDecodeError:
+                        parsed = None
+
+                if parsed is None:
+                    # Final fallback: parse as Python literal safely (handles single quotes + embedded strings)
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(tool_input_str)
+                        logger.debug("%s Successfully parsed structured tool input using ast.literal_eval",
+                                     AGENT_LOG_PREFIX)
+                    except Exception:
+                        parsed = None
+
+                if parsed is None:
+                    # Use raw string input
                     logger.debug(
-                        "%s Unable to parse structured tool input after quote normalization. Using Action Input as is."
+                        "%s Unable to parse structured tool input. Using Action Input as is."
                         "\nParsing error: %s",
                         AGENT_LOG_PREFIX,
                         original_ex)
                     tool_input = tool_input_str
-            else:
-                # use raw string input
-                logger.debug(
-                    "%s Unable to parse structured tool input from Action Input. Using Action Input as is."
-                    "\nParsing error: %s",
-                    AGENT_LOG_PREFIX,
-                    original_ex)
-                tool_input = tool_input_str
+                else:
+                    tool_input = parsed
 
         # Call tool once with the determined input (either parsed dict or raw string)
         tool_response = await self._call_tool(requested_tool,

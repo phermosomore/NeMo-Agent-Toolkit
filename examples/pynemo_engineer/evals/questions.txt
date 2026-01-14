@@ -31,3 +31,5 @@ Can you please generate a PNG File of the 3D View of the First Timestep of one t
 Or the last 2 together:
 
 Please proceed and run the ZARR and VTP ETL. Once you are done and this is successful, can you please generate a PNG File of the 3D View of the First Timestep of one the VTP Files where you colour the Point Cloud by Thickness. Use Matplotlib and save under /workspace. Make sure to use equal axes to ensure the physical dimensions are respected.
+
+Fantastic. With the answer above, write a Python Notebook explaining the Data Processing workflow in as much detail as possible and then the code to actually run the ETL for Zarr and VTP. Lastly, please include a section on Visualisation. Please show how to generate a PNG File of the 3D View of the First Timestep of one the VTP Files where you colour the Point Cloud by Thickness. Use Matplotlib. Make sure to use equal axes to ensure the physical dimensions are respected.
